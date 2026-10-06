@@ -1,124 +1,95 @@
-# Local Development Setup & Git Workflow
+KodaStore API
+E-commerce REST API built with Express & MongoDB, featuring 40+ endpoints for transactional order processing, Cloudinary image management, smart stock management, automated emails, Stripe payments, and admin analytics.
 
-## 1. Clone the Repository
+Node.js Express MongoDB Stripe
 
-Clone the project from GitHub:
+Table of Contents
+Features
+Tech Stack
+Project Structure
+Database Models
+API Reference
+Business Logic Highlights
+Getting Started
+Environment Variables
+Deployment
+Features
+Authentication — OTP-based email verification on signup, JWT auth via an HTTP-only cookie, and a forgot/reset password flow
+Products — full CRUD, Cloudinary image uploads, category/brand/price filters, full-text search, and a review system
+Cart — add/update/remove items with live stock checks, plus a coupon system
+Orders — cash or Stripe checkout, atomic stock updates via a MongoDB transaction, cancellation, and a status pipeline from pending to delivered
+Stripe integration — PaymentIntents on checkout, webhook-driven payment confirmation
+Wishlists — save and manage favorite products
+Admin dashboard — revenue (total/monthly/growth), order counts by status, top-selling products, 7-day revenue trend, recent orders, and customer count — all via MongoDB aggregation pipelines
+Transactional emails — OTP codes, order confirmation, and order status updates
+Tech Stack
+Technology	Purpose
+Node.js	Runtime
+Express	Routing, middleware, error handling
+MongoDB + Mongoose	Database, schemas, validation, hooks
+JWT	Stateless auth, issued as an HTTP-only cookie
+bcryptjs	Password and OTP hashing
+Joi	Request validation
+Stripe	Online payments and webhooks
+Cloudinary + Multer	Image upload and storage
+Nodemailer	Transactional emails
+Slugify	URL-friendly product slugs
+cors, cookie-parser, dotenv	Standard Express middleware
+Project Structure
+ecommerce-api/
+├── config/           # Cloudinary config
+├── models/           # Mongoose schemas (User, Product, Order, Cart, Wishlist, OTP)
+├── controllers/      # Business logic per resource
+├── routes/           # Express route definitions
+├── validators/        # Joi schemas
+├── middleware/       # auth, role check, upload, validation, error handling
+├── utils/            # asyncHandler, createError, sendEmail, uploadToCloudinary
+├── db/               # Database connection
+├── app.js          # App entry point
+├── server.js
+└── vercel.json        # Vercel deployment config
+Data Model
+Six collections: User, Product, Order, Cart, Wishlist, OTP. A few relationships worth knowing before reading the endpoints:
 
-```bash
-git clone https://github.com/PierreEhab-1337/Ecommerce-API.git
-```
+A Cart and a Wishlist each belong to exactly one User. Cart totals (subtotal, discountAmount, total, itemCount) are Mongoose virtuals, computed on read rather than stored — and coupon codes (SAVE10, SAVE20, SAVE50, SAVE80, OFF50) are defined server-side, not in the database.
+An Order's items[] are a snapshot (name, image, price, quantity) taken at purchase time, independent of later changes to the Product. status moves forward through pending → confirmed → processing → shipped → delivered, with cancelled / returned as side branches.
+A Product's averageRating / numReviews are recalculated whenever a review is added or removed, and slug is auto-generated from name. Exact fields, types and validation rules for every model are in Swagger UI.
+API Reference
+40+ endpoints across authentication, users, products, carts, orders, wishlists, admin, and the Stripe webhook. Full request/response schemas, auth requirements, and query parameters are documented in the OpenAPI spec:
 
-Navigate to the project directory:
+Spec file: docs/swagger.json
+Interactive docs: served at Swagger UI Authentication across the API is a JWT stored in an HTTP-only token cookie, set by POST /auth/login.
+Business Logic Highlights
+Order transactions — createOrder and cancellation run inside a single Mongoose session: stock is validated and adjusted, the order is written, and the cart is cleared together. If any step fails, everything rolls back.
+Stock tracking through the cart — adding, updating, or removing a cart item adjusts product stock immediately, rather than only at checkout.
+Image lifecycle — product images are uploaded to Cloudinary on create, can be selectively added/removed on update, and are deleted from Cloudinary when the product is deleted.
+Stripe webhook — payment_intent.succeeded marks an order paid and confirmed; payment_intent.payment_failed marks it failed; payment_intent.canceled cancels the order and restores stock.
+Admin dashboard — built from several aggregation pipelines run in parallel (revenue by period, order counts by status, top 5 products by units sold, last 7 days of revenue, 5 most recent orders).
+Environment Variables
+# Server
+PORT=5000
+NODE_ENV=development
 
-```bash
-cd Ecommerce-API
-```
+# Database
+MONGO_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/ecommerce
 
----
+# JWT
+JWT_SECRET=your_super_secret_key
+JWT_EXPIRE=7d
 
-## 2. Install Dependencies
+# Cloudinary
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
 
-Install all required project packages:
+# Stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
 
-```bash
-npm install
-```
-
-This will install the dependencies defined in `package.json`.
-
----
-
-## 3. Start the Development Server
-
-Run the development server:
-
-```bash
-npm run dev
-```
-
----
-
-# Git Workflow
-
-Before starting any development work, **create your own feature branch**.
-
-## 1. Create a Feature Branch
-
-```bash
-git checkout -b feature/your-assigned-task
-```
-
-Replace `your-assigned-task` with a short description of your task.
-
-For example:
-
-```bash
-git checkout -b feature/user-authentication
-```
-
----
-
-## 2. Make Your Changes
-
-Complete your assigned task and test your changes locally.
-
----
-
-## 3. Commit Your Changes
-
-Stage your changes:
-
-```bash
-git add .
-```
-
-Create a commit:
-
-```bash
-git commit -m "feat: explain what you completed in your task"
-```
-
-Keep commit messages short and descriptive.
-
-Example:
-
-```bash
-git commit -m "feat: add user authentication middleware"
-```
-
----
-
-## 4. Push Your Branch
-
-Push your feature branch to GitHub:
-
-```bash
-git push origin feature/your-assigned-task
-```
-
-Example:
-
-```bash
-git push origin feature/user-authentication
-```
-
----
-
-## 5. Create a Pull Request
-
-After pushing your branch to GitHub, go to the repository page.
-
-GitHub will usually display a **“Compare & pull request”** button for your recently pushed branch.
-
-* Click **“Compare & pull request”** if it appears.
-* If it does not appear, go to the **Pull Requests** tab and click **“New Pull Request”**.
-* Select your feature branch as the source branch.
-* Select `main` as the target branch.
-* Add a clear description of your changes.
-* Create the Pull Request.
-
-The **team lead will review the Pull Request** and merge it into `main` once the changes are approved.
-
----
-
-> **Important:** Do not work directly on the `main` branch. Always create a feature branch for your assigned task.
+# Email (Nodemailer)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_app_password
+Deployment
+Deployed on Vercel with MongoDB Atlas (Network Access set to allow all, since Vercel's outgoing IPs aren't static).
